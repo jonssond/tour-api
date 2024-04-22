@@ -17,7 +17,6 @@ const DB = process.env.DATABASE.replace(
 
 mongoose.connect(DB).then(() => {
   console.log('DB connected!');
-  console.log(process.env.JWT_EXPIRES_IN);
 });
 
 const port = 3000;
