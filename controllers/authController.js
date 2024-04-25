@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const AppError = require('./../utils/appError');
+const sendEmail = require('./../utils/email');
 const User = require('./../models/userModel');
 const catchAsync = require('./../utils/catchAsync');
 
@@ -98,5 +99,25 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   if (!user) {
     return next(new AppError('There is no user with this e-mail address', 404));
   }
+
+  const resetToken = user.createPasswordToken();
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `${req.protocol}://${req.get(
+    'host'
+  )}/api/v1/users/reset-password/${resetToken}`;
+
+  const message = `Forgot your password? Submit a new request with your new password to: ${resetURL} \n If you didn't forget your password, please ignore this e-mail`;
+
+  await sendEmail({
+    email: user.email,
+    subject: 'Your password reset token (valid for 10 minutes)',
+    message,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Token sent to e-mail!',
+  });
 });
 exports.resetPassword = (req, res, next) => {};
