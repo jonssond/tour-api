@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
+const crypto = require('crypto');
 const AppError = require('./../utils/appError');
 const sendEmail = require('./../utils/email');
 const User = require('./../models/userModel');
@@ -107,17 +108,41 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
     'host'
   )}/api/v1/users/reset-password/${resetToken}`;
 
-  const message = `Forgot your password? Submit a new request with your new password to: ${resetURL} \n If you didn't forget your password, please ignore this e-mail`;
+  const message = `Forgot your password? Submit a new request with your new password to: ${resetURL} \nIf you didn't forget your password, please ignore this e-mail`;
 
-  await sendEmail({
-    email: user.email,
-    subject: 'Your password reset token (valid for 10 minutes)',
-    message,
-  });
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'Your password reset token (valid for 10 minutes)',
+      message,
+    });
 
-  res.status(200).json({
-    status: 'success',
-    message: 'Token sent to e-mail!',
+    res.status(200).json({
+      status: 'success',
+      message: 'Token sent to e-mail!',
+    });
+  } catch (err) {
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return next(
+      new AppError(
+        'There was an error sending the e-mail. Try again later',
+        500
+      )
+    );
+  }
+});
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
   });
 });
-exports.resetPassword = (req, res, next) => {};
